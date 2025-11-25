@@ -1457,6 +1457,7 @@ export const providers: ProvidersMap = {
       'openai/gpt-5.1-codex-mini': models['gpt-5.1-codex-mini'],
       'anthropic/claude-sonnet-4.5': models['claude-4-5-sonnet'],
       'anthropic/claude-opus-4.1': models['claude-4.1-opus'],
+      'anthropic/claude-opus-4.5': models['claude-opus-4-5'],
     },
     createModel: defaultModelCreatorCompatible,
   },
