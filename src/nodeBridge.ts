@@ -19,6 +19,7 @@ import { Project } from './project';
 import { query } from './query';
 import { SessionConfigManager } from './session';
 import { SlashCommandManager } from './slashCommand';
+import type { ApprovalCategory, ToolUse } from './tool';
 import { getFiles } from './utils/files';
 import { listDirectory } from './utils/list';
 import { randomUUID } from './utils/randomUUID';
@@ -1229,12 +1230,21 @@ class NodeHandlerRegistry {
             cwd,
           });
         },
-        onToolApprove: async ({ toolUse, category }: any) => {
+        onToolApprove: async ({
+          toolUse,
+          category,
+        }: {
+          toolUse: ToolUse;
+          category?: ApprovalCategory;
+        }) => {
           const result = await this.messageBus.request('toolApproval', {
             toolUse,
             category,
           });
-          return result.approved;
+
+          return result.params
+            ? { approved: result.approved, params: result.params }
+            : result.approved;
         },
         onStreamResult: async (result: StreamResult) => {
           await this.messageBus.emitEvent('streamResult', {
