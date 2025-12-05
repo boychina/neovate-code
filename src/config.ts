@@ -39,6 +39,13 @@ export type CommitConfig = {
 
 export type ProviderConfig = Partial<Omit<Provider, 'createModel'>>;
 
+export type DesktopConfig = {
+  theme?: 'light' | 'dark' | 'system';
+  sendMessageWith?: 'enter' | 'cmdEnter';
+  terminalFont?: string;
+  terminalFontSize?: number;
+};
+
 export type Config = {
   model: string;
   planModel: string;
@@ -66,6 +73,7 @@ export type Config = {
   browser?: boolean;
   temperature?: number;
   httpProxy?: string;
+  desktop?: DesktopConfig;
   /**
    * Extensions configuration for third-party custom agents.
    * Allows arbitrary nested configuration without validation.
@@ -92,6 +100,10 @@ const DEFAULT_CONFIG: Partial<Config> = {
   browser: false,
   extensions: {},
   tools: {},
+  desktop: {
+    theme: 'light',
+    sendMessageWith: 'enter',
+  },
 };
 const VALID_CONFIG_KEYS = [
   ...Object.keys(DEFAULT_CONFIG),
@@ -119,6 +131,7 @@ const OBJECT_CONFIG_KEYS = [
   'provider',
   'extensions',
   'tools',
+  'desktop',
 ];
 const BOOLEAN_CONFIG_KEYS = [
   'quiet',
@@ -127,6 +140,14 @@ const BOOLEAN_CONFIG_KEYS = [
   'autoUpdate',
   'browser',
 ];
+export const GLOBAL_ONLY_KEYS = ['desktop'];
+
+function assertGlobalAllowed(global: boolean, key: string) {
+  const rootKey = key.split('.')[0];
+  if (!global && GLOBAL_ONLY_KEYS.includes(rootKey)) {
+    throw new Error(`Config key '${rootKey}' can only be set globally`);
+  }
+}
 
 export class ConfigManager {
   globalConfig: Partial<Config>;
@@ -180,6 +201,7 @@ export class ConfigManager {
   }
 
   removeConfig(global: boolean, key: string, values?: string[]) {
+    assertGlobalAllowed(global, key);
     const config = global ? this.globalConfig : this.projectConfig;
     const configPath = global ? this.globalConfigPath : this.projectConfigPath;
 
@@ -244,6 +266,7 @@ export class ConfigManager {
   }
 
   addConfig(global: boolean, key: string, values: string[]) {
+    assertGlobalAllowed(global, key);
     if (!VALID_CONFIG_KEYS.includes(key)) {
       throw new Error(`Invalid config key: ${key}`);
     }
@@ -289,6 +312,7 @@ export class ConfigManager {
   }
 
   setConfig(global: boolean, key: string, value: string) {
+    assertGlobalAllowed(global, key);
     const config = global ? this.globalConfig : this.projectConfig;
     const configPath = global ? this.globalConfigPath : this.projectConfigPath;
 
@@ -354,6 +378,7 @@ export class ConfigManager {
       if (!VALID_CONFIG_KEYS.includes(key)) {
         throw new Error(`Invalid config key: ${key}`);
       }
+      assertGlobalAllowed(global, key);
     });
     let config = global ? this.globalConfig : this.projectConfig;
     const configPath = global ? this.globalConfigPath : this.projectConfigPath;
