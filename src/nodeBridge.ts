@@ -1214,22 +1214,43 @@ class NodeHandlerRegistry {
     });
 
     this.messageBus.registerHandler('session.getModel', async (data) => {
-      const { cwd, sessionId } = data;
+      const { cwd, sessionId, includeModelInfo = false } = data;
       const context = await this.getContext(cwd);
       const sessionConfigManager = new SessionConfigManager({
         logPath: context.paths.getSessionLogPath(sessionId),
       });
-      const model =
+      const modelStr =
         // 1. model from argv config
         context.argvConfig?.model ||
         // 2. model from session config
         sessionConfigManager.config.model ||
         // 3. model from context config
         context.config.model;
+      if (includeModelInfo) {
+        const { model, providers, error } = await resolveModelWithContext(
+          modelStr,
+          context,
+        );
+        if (error) {
+          return {
+            success: false,
+            error,
+          };
+        } else {
+          return {
+            success: true,
+            data: {
+              model: modelStr,
+              modelInfo: model,
+              providers,
+            },
+          };
+        }
+      }
       return {
         success: true,
         data: {
-          model,
+          model: modelStr,
         },
       };
     });

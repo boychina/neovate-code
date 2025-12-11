@@ -8,6 +8,7 @@
 import type { ApprovalMode, McpServerConfig } from './config';
 import type { ResponseFormat, ThinkingConfig } from './loop';
 import type { ImagePart, Message, NormalizedMessage } from './message';
+import type { ModelInfo, ProvidersMap } from './model';
 import type { ApprovalCategory, ToolUse } from './tool';
 
 // ============================================================================
@@ -389,13 +390,27 @@ type SessionMessagesListOutput = {
 type SessionGetModelInput = {
   cwd: string;
   sessionId: string;
+  includeModelInfo?: boolean;
 };
-type SessionGetModelOutput = {
-  success: boolean;
-  data: {
-    model: string | null;
-  };
-};
+type SessionGetModelOutput =
+  | {
+      success: true;
+      data: {
+        model: string | null;
+      };
+    }
+  | {
+      success: true;
+      data: {
+        model: string | null;
+        modelInfo: ModelInfo | null;
+        providers: ProvidersMap;
+      };
+    }
+  | {
+      success: false;
+      error: any;
+    };
 
 type SessionSendInput = {
   message: string | null;
