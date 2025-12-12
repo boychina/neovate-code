@@ -182,9 +182,6 @@ export function ChatInput() {
   if (forkModalVisible) {
     return null;
   }
-  if (status === 'exit') {
-    return null;
-  }
 
   return (
     <Box flexDirection="column" marginTop={SPACING.CHAT_INPUT_MARGIN_TOP}>
