@@ -617,6 +617,90 @@ and may require re-resolving conflicts.`,
           break;
         }
 
+        case 'checkoutPush': {
+          // Create branch
+          setState({
+            phase: 'executing',
+            action: 'checkout',
+            data,
+            outputLines: [],
+          });
+          const branchResult = await messageBus.request('git.createBranch', {
+            cwd,
+            name: data.branchName,
+          });
+
+          if (!branchResult.success) {
+            setState({
+              phase: 'error',
+              error: branchResult.error || 'Failed to create branch',
+              data,
+            });
+            return;
+          }
+
+          const branchName = branchResult.data?.branchName || data.branchName;
+
+          // Then commit
+          setState((prev) => ({
+            phase: 'executing',
+            action: 'commit',
+            data,
+            outputLines:
+              prev.phase === 'executing' && prev.outputLines?.length
+                ? [...prev.outputLines, '']
+                : [],
+          }));
+          const commitResult = await messageBus.request('git.commit', {
+            cwd,
+            message: data.commitMessage,
+            noVerify: options.noVerify,
+          });
+
+          if (!commitResult.success) {
+            setState({
+              phase: 'error',
+              error: commitResult.error || 'Commit failed',
+              data,
+            });
+            return;
+          }
+
+          // Then push
+          setState((prev) => ({
+            phase: 'executing',
+            action: 'push',
+            data,
+            outputLines:
+              prev.phase === 'executing' && prev.outputLines?.length
+                ? [...prev.outputLines, '']
+                : [],
+          }));
+          const pushResult = await messageBus.request('git.push', { cwd });
+
+          if (pushResult.success) {
+            setState((prev) => ({
+              phase: 'success',
+              message: `Branch '${branchName}' created, committed, and pushed!`,
+              data,
+              outputLines: prev.phase === 'executing' ? prev.outputLines : [],
+            }));
+            setTimeout(() => setShouldExit(true), 1000);
+          } else {
+            const error = pushResult.error || 'Push failed';
+            if (error.includes('rejected')) {
+              setState({
+                phase: 'error',
+                error: `${error}\n\nHint: Run 'git pull' first to sync with remote.`,
+                data,
+              });
+            } else {
+              setState({ phase: 'error', error, data });
+            }
+          }
+          break;
+        }
+
         case 'edit': {
           setState({
             phase: 'editing',
