@@ -408,6 +408,13 @@ export async function runLoop(opts: RunLoopOpts): Promise<LoopResult> {
     }
 
     await opts.onText?.(text);
+
+    // some model may return multiple \n in the end of the reasoning
+    // e.g. antigravity/gemini-3-pro-high
+    if (reasoning) {
+      reasoning = reasoning.trim();
+    }
+
     if (reasoning) {
       await opts.onReasoning?.(reasoning);
     }
