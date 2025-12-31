@@ -28,6 +28,7 @@ import { PluginHookType } from './plugin';
 import { getThinkingConfig } from './thinking-config';
 import { rotateApiKey } from './utils/apiKeyRotation';
 import { mergeSystemMessagesMiddleware } from './utils/mergeSystemMessagesMiddleware';
+import { prependSystemMessageMiddleware } from './utils/prependSystemMessageMiddleware';
 
 export interface ModelModalities {
   input: ('text' | 'image' | 'audio' | 'video' | 'pdf')[];
@@ -1363,9 +1364,13 @@ export const providers: ProvidersMap = {
     createModel(name, provider) {
       const baseURL = getProviderBaseURL(provider);
       const apiKey = getProviderApiKey(provider);
-      return createAnthropic(
+      const model = createAnthropic(
         withProxyConfig({ apiKey, baseURL }, provider),
       ).chat(name);
+      return wrapLanguageModel({
+        model,
+        middleware: [prependSystemMessageMiddleware],
+      });
     },
   },
   aihubmix: {
