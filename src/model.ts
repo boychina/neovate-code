@@ -1895,7 +1895,13 @@ export const providers: ProvidersMap = {
       'qwen/qwen3-coder-480b-a35b-instruct':
         models['qwen3-coder-480b-a35b-instruct'],
     },
-    createModel: defaultModelCreator,
+    createModel: createModelCreatorCompatible({
+      middlewares: [
+        extractReasoningMiddleware({
+          tagName: 'think',
+        }),
+      ],
+    }),
   },
   canopywave: {
     id: 'canopywave',
