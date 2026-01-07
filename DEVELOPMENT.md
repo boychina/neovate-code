@@ -1,6 +1,6 @@
 # Development Workflow
 
-This document covers the development workflow and best practices for the Neovate Code team. For technical setup instructions, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+This document covers the development workflow and best practices for the Neovate Code Maintainers. For technical setup instructions, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Design First
 
