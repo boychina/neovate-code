@@ -1,3 +1,4 @@
+import { AGENT_TYPE } from '../../constants';
 import type { PromptCommand } from '../types';
 
 export function createInitCommand(opts: { productName: string }) {
@@ -24,9 +25,9 @@ You are creating documentation for this codebase using **progressive disclosure 
 
 ### Phase 1: Discovery & Analysis
 
-**IMPORTANT: Use the Explore subagent to analyze the codebase thoroughly.**
+**IMPORTANT: Use the task tool with subagent_type "${AGENT_TYPE.EXPLORE}" to analyze the codebase thoroughly.**
 
-Launch the Explore subagent with "very thorough" level to understand:
+Launch the ${AGENT_TYPE.EXPLORE} subagent with "very thorough" level to understand:
 
 1. **Package/Build Configuration**
    - Find and read \`package.json\`, \`Cargo.toml\`, \`pyproject.toml\`, or similar
@@ -132,9 +133,8 @@ Create ONLY if strong, unique patterns exist. Include:
 ## ERROR HANDLING
 
 ### Existing Files
-- If \`${ruleFile}\` exists: Show a summary of what would change, then ask "AGENTS.md exists. Replace? [y/n]"
-- If \`docs/agent/*.md\` files exist: Ask for each file "Replace docs/agent/[filename]? [y/n]"
-- Preserve any valuable custom content from existing files
+- If \`${ruleFile}\` or \`docs/agent/*.md\` files already exist, update them directly instead of creating new ones
+- Preserve any valuable custom content from existing files while improving and updating
 
 ### Missing Information
 - If insufficient info for a category, DO NOT create that doc file
