@@ -349,57 +349,74 @@ function applyStringReplace(
   oldStr: string,
   newStr: string,
   replaceAll = false,
-): string {
-  const performReplace = (text: string, search: string, replace: string) => {
+): { result: string; matchIndex: number } {
+  const performReplace = (
+    text: string,
+    search: string,
+    replace: string,
+    matchIdx: number,
+  ): { result: string; matchIndex: number } => {
     if (replaceAll) {
       const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      return text.replace(new RegExp(escapedSearch, 'g'), () => replace);
+      return {
+        result: text.replace(new RegExp(escapedSearch, 'g'), () => replace),
+        matchIndex: matchIdx,
+      };
     }
-    return text.replace(search, () => replace);
+    return {
+      result: text.replace(search, () => replace),
+      matchIndex: matchIdx,
+    };
   };
 
   // Strategy 1: Exact match
   if (content.includes(oldStr)) {
+    const matchIndex = content.indexOf(oldStr);
     if (newStr !== '') {
-      return performReplace(content, oldStr, newStr);
+      return performReplace(content, oldStr, newStr, matchIndex);
     }
 
     const hasTrailingNewline =
       !oldStr.endsWith('\n') && content.includes(`${oldStr}\n`);
 
     return hasTrailingNewline
-      ? performReplace(content, `${oldStr}\n`, newStr)
-      : performReplace(content, oldStr, newStr);
+      ? performReplace(content, `${oldStr}\n`, newStr, matchIndex)
+      : performReplace(content, oldStr, newStr, matchIndex);
   }
 
   // Strategy 2: Line-trimmed match
   const lineTrimmedMatch = tryLineTrimmedMatch(content, oldStr);
   if (lineTrimmedMatch) {
-    return performReplace(content, lineTrimmedMatch, newStr);
+    const matchIndex = content.indexOf(lineTrimmedMatch);
+    return performReplace(content, lineTrimmedMatch, newStr, matchIndex);
   }
 
   // Strategy 3: Block anchor match (first/last lines + similarity)
   const blockAnchorMatch = tryBlockAnchorMatch(content, oldStr);
   if (blockAnchorMatch) {
-    return performReplace(content, blockAnchorMatch, newStr);
+    const matchIndex = content.indexOf(blockAnchorMatch);
+    return performReplace(content, blockAnchorMatch, newStr, matchIndex);
   }
 
   // Strategy 4: Whitespace-normalized match
   const whitespaceMatch = tryWhitespaceNormalizedMatch(content, oldStr);
   if (whitespaceMatch) {
-    return performReplace(content, whitespaceMatch, newStr);
+    const matchIndex = content.indexOf(whitespaceMatch);
+    return performReplace(content, whitespaceMatch, newStr, matchIndex);
   }
 
   // Strategy 5: Escape-normalized match
   const escapeMatch = tryEscapeNormalizedMatch(content, oldStr);
   if (escapeMatch) {
-    return performReplace(content, escapeMatch, newStr);
+    const matchIndex = content.indexOf(escapeMatch);
+    return performReplace(content, escapeMatch, newStr, matchIndex);
   }
 
   // Strategy 6: Indentation-flexible match
   const indentMatch = tryIndentationFlexibleMatch(content, oldStr);
   if (indentMatch) {
-    return performReplace(content, indentMatch, newStr);
+    const matchIndex = content.indexOf(indentMatch);
+    return performReplace(content, indentMatch, newStr, matchIndex);
   }
 
   // All strategies failed
@@ -415,7 +432,7 @@ export function applyEdits(
   cwd: string,
   filePath: string,
   edits: Edit[],
-): { patch: any; updatedFile: string } {
+): { patch: any; updatedFile: string; startLineNumber: number } {
   const fullFilePath = isAbsolute(filePath) ? filePath : resolve(cwd, filePath);
 
   let fileContents = '';
@@ -437,6 +454,7 @@ export function applyEdits(
 
   let currentContent = fileContents;
   const newStringsHistory: string[] = [];
+  let firstMatchLineNumber = 1;
 
   for (const edit of edits) {
     const { old_string, new_string, replace_all } = edit;
@@ -454,13 +472,19 @@ export function applyEdits(
 
     if (old_string === '') {
       currentContent = new_string;
+      firstMatchLineNumber = 1;
     } else {
-      currentContent = applyStringReplace(
+      const { result, matchIndex } = applyStringReplace(
         currentContent,
         old_string,
         new_string,
         replace_all,
       );
+      currentContent = result;
+      if (firstMatchLineNumber === 1 && matchIndex >= 0) {
+        const textBeforeMatch = previousContent.substring(0, matchIndex);
+        firstMatchLineNumber = textBeforeMatch.split('\n').length;
+      }
     }
 
     if (currentContent === previousContent) {
@@ -490,5 +514,9 @@ export function applyEdits(
     currentContent,
   );
 
-  return { patch, updatedFile: currentContent };
+  return {
+    patch,
+    updatedFile: currentContent,
+    startLineNumber: firstMatchLineNumber,
+  };
 }

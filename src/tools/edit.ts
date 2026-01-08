@@ -52,9 +52,11 @@ Usage:
           ? file_path
           : path.resolve(cwd, file_path);
         const relativeFilePath = path.relative(cwd, fullFilePath);
-        const { patch, updatedFile } = applyEdits(cwd, fullFilePath, [
-          { old_string, new_string, replace_all },
-        ]);
+        const { patch, updatedFile, startLineNumber } = applyEdits(
+          cwd,
+          fullFilePath,
+          [{ old_string, new_string, replace_all }],
+        );
         const dir = path.dirname(fullFilePath);
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(fullFilePath, updatedFile, 'utf-8');
@@ -66,6 +68,7 @@ Usage:
             originalContent: { inputKey: 'old_string' },
             newContent: { inputKey: 'new_string' },
             absoluteFilePath: fullFilePath,
+            startLineNumber,
           },
         };
       } catch (e) {

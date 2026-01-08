@@ -14,6 +14,7 @@ interface DiffProps {
   maxHeight?: number;
   terminalWidth?: number;
   useCodeHighlight?: boolean;
+  startLineNumber?: number;
 }
 
 interface DiffLine {
@@ -273,6 +274,7 @@ function RenderDiffContent(
   fileName: string | undefined,
   maxHeight: number,
   terminalWidth: number,
+  startLineNumber: number = 1,
 ): React.ReactNode {
   const normalizedLines = parsedLines.map((line) => ({
     ...line,
@@ -377,16 +379,21 @@ function RenderDiffContent(
           let color: 'green' | 'red' | undefined;
           let prefixSymbol = ' ';
           let dim = false;
+          const lineOffset = startLineNumber - 1;
 
           switch (line.type) {
             case 'add':
-              gutterNumStr = (line.newLine ?? '').toString();
+              gutterNumStr = line.newLine
+                ? (line.newLine + lineOffset).toString()
+                : '';
               color = 'green';
               prefixSymbol = '+';
               lastLineNumber = line.newLine ?? null;
               break;
             case 'del':
-              gutterNumStr = (line.oldLine ?? '').toString();
+              gutterNumStr = line.oldLine
+                ? (line.oldLine + lineOffset).toString()
+                : '';
               color = 'red';
               prefixSymbol = '-';
               if (line.oldLine !== undefined) {
@@ -394,7 +401,9 @@ function RenderDiffContent(
               }
               break;
             case 'context':
-              gutterNumStr = (line.newLine ?? '').toString();
+              gutterNumStr = line.newLine
+                ? (line.newLine + lineOffset).toString()
+                : '';
               dim = true;
               prefixSymbol = ' ';
               lastLineNumber = line.newLine ?? null;
@@ -439,6 +448,7 @@ export function DiffViewer({
   fileName,
   maxHeight = DEFAULT_MAX_HEIGHT,
   useCodeHighlight = true,
+  startLineNumber = 1,
 }: DiffProps) {
   const { transcriptMode } = useAppStore();
   const { columns: terminalWidth } = useTerminalSize();
@@ -482,5 +492,6 @@ export function DiffViewer({
     fileName,
     effectiveMaxHeight,
     terminalWidth,
+    startLineNumber,
   );
 }

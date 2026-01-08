@@ -597,7 +597,8 @@ function ToolResultItem({ part }: { part: ToolResultPart }) {
   ) {
     switch (result.returnDisplay.type) {
       case 'diff_viewer': {
-        const { originalContent, newContent, filePath } = result.returnDisplay;
+        const { originalContent, newContent, filePath, startLineNumber } =
+          result.returnDisplay;
         const originalContentValue =
           typeof originalContent === 'string'
             ? originalContent
@@ -612,6 +613,7 @@ function ToolResultItem({ part }: { part: ToolResultPart }) {
             newContent={newContentValue}
             fileName={filePath}
             maxHeight={transcriptMode ? Infinity : 10}
+            startLineNumber={startLineNumber}
           />
         );
       }
