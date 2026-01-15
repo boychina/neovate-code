@@ -1194,6 +1194,91 @@ const defaultAnthropicModelCreator = (name: string, provider: Provider) => {
   });
 };
 
+const deepseekModelCreator = (name: string, provider: Provider) => {
+  const baseURL = getProviderBaseURL(provider);
+  const apiKey = getProviderApiKey(provider);
+  const baseConfig = withProxyConfig(
+    {
+      baseURL,
+      apiKey,
+    } as any,
+    provider,
+  );
+  const upstreamFetch = (baseConfig as any).fetch || globalThis.fetch;
+  const deepseekFetch = async (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => {
+    const options = { ...init };
+    try {
+      if (
+        options?.method === 'POST' &&
+        options.body &&
+        typeof options.body === 'string'
+      ) {
+        const body = JSON.parse(options.body);
+        let modified = false;
+        if (body.messages && Array.isArray(body.messages)) {
+          for (const msg of body.messages) {
+            if (msg.role === 'assistant') {
+              const hasToolCalls =
+                Array.isArray((msg as any).tool_calls) &&
+                (msg as any).tool_calls.length > 0;
+              if (Array.isArray(msg.content)) {
+                const reasoningParts = msg.content.filter(
+                  (p: any) => p && p.type === 'reasoning',
+                );
+                const reasoningText = reasoningParts
+                  .map((p: any) => String(p.text || ''))
+                  .join('\n')
+                  .trim();
+                if (reasoningText.length > 0) {
+                  (msg as any).reasoning_content = reasoningText;
+                  msg.content = msg.content.filter(
+                    (p: any) => p && p.type !== 'reasoning',
+                  );
+                  modified = true;
+                } else if (
+                  hasToolCalls &&
+                  (msg as any).reasoning_content == null
+                ) {
+                  (msg as any).reasoning_content = '';
+                  modified = true;
+                }
+              } else if (typeof msg.content === 'string') {
+                const thinkMatch = msg.content.match(
+                  /<think>([\s\S]*?)<\/think>/,
+                );
+                if (thinkMatch) {
+                  (msg as any).reasoning_content = thinkMatch[1];
+                  msg.content = msg.content
+                    .replace(/<think>[\s\S]*?<\/think>/, '')
+                    .trim();
+                  modified = true;
+                } else if (
+                  hasToolCalls &&
+                  (msg as any).reasoning_content == null
+                ) {
+                  (msg as any).reasoning_content = '';
+                  modified = true;
+                }
+              }
+            }
+          }
+        }
+        if (modified) {
+          options.body = JSON.stringify(body);
+        }
+      }
+    } catch {}
+    return upstreamFetch(input, options);
+  };
+  return createOpenAICompatible({
+    ...(baseConfig as any),
+    fetch: deepseekFetch as any,
+  })(name);
+};
+
 const openaiModelCreator = (
   name: string,
   provider: Provider,
@@ -1365,7 +1450,7 @@ export const providers: ProvidersMap = {
       'deepseek-chat': models['deepseek-v3.2'],
       'deepseek-reasoner': models['deepseek-r1-0528'],
     },
-    createModel: defaultModelCreator,
+    createModel: deepseekModelCreator,
   },
   xai: {
     id: 'xai',
