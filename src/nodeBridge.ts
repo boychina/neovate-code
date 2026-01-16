@@ -470,7 +470,8 @@ class NodeHandlerRegistry {
       const { model: modelStr } = data;
       const cwd = data.cwd || require('os').tmpdir();
       const timeout = data.timeout ?? 15000; // Default 15 seconds
-      const prompt = 'hi';
+      const prompt = data.prompt ?? 'hi';
+      const useTempContext = !data.cwd;
       try {
         const context = await this.getContext(cwd);
         const { model, error } = await resolveModelWithContext(
@@ -493,14 +494,22 @@ class NodeHandlerRegistry {
           );
         });
 
+        const startTime = Date.now();
         const result = await Promise.race([
           query({
             userPrompt: prompt,
             model,
             systemPrompt: '',
+            thinking: false, // Disable thinking for faster test
           }),
           timeoutPromise,
         ]);
+        const responseTime = Date.now() - startTime;
+
+        // Cleanup temp context to avoid memory leak
+        if (useTempContext) {
+          await this.clearContext(cwd);
+        }
 
         if (!result.success) {
           return {
@@ -517,9 +526,15 @@ class NodeHandlerRegistry {
             modelName: model.model.name,
             prompt,
             response: result.data?.text || '',
+            responseTime,
+            usage: result.data?.usage || null,
           },
         };
       } catch (error: any) {
+        // Cleanup temp context on error as well
+        if (useTempContext) {
+          await this.clearContext(cwd).catch(() => {});
+        }
         return {
           success: false,
           error: error.message || 'Failed to test model',

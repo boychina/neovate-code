@@ -20,6 +20,8 @@ interface ParsedArgs {
   list: boolean;
   handler: string | null;
   model: string | null;
+  prompt: string | null;
+  timeout: number | null;
   cwd: string;
 }
 
@@ -30,6 +32,8 @@ function parseArgs(): ParsedArgs {
     list: false,
     handler: null,
     model: null,
+    prompt: null,
+    timeout: null,
     cwd: process.cwd(),
   };
 
@@ -41,6 +45,10 @@ function parseArgs(): ParsedArgs {
       result.list = true;
     } else if (arg === '--model' && args[i + 1]) {
       result.model = args[++i];
+    } else if (arg === '--prompt' && args[i + 1]) {
+      result.prompt = args[++i];
+    } else if (arg === '--timeout' && args[i + 1]) {
+      result.timeout = parseInt(args[++i], 10);
     } else if (arg === '--cwd' && args[i + 1]) {
       result.cwd = args[++i];
     } else if (!arg.startsWith('-') && !result.handler) {
@@ -64,12 +72,15 @@ Options:
   -h, --help        Show this help message
   -l, --list        List all available handlers
   --model <model>   Model string for models.test (e.g., anthropic/claude-sonnet-4-20250514)
+  --prompt <text>   Custom prompt for models.test (default: 'hi')
+  --timeout <ms>    Timeout in milliseconds for models.test (default: 15000)
   --cwd <path>      Working directory (defaults to current directory)
 
 Examples:
   bun scripts/test-nodebridge.ts --list
   bun scripts/test-nodebridge.ts models.list
   bun scripts/test-nodebridge.ts models.test --model anthropic/claude-sonnet-4-20250514
+  bun scripts/test-nodebridge.ts models.test --model openai/gpt-4o --prompt "Say hello" --timeout 5000
   bun scripts/test-nodebridge.ts providers.list
   bun scripts/test-nodebridge.ts config.list
 `);
@@ -88,8 +99,9 @@ const HANDLERS: Record<
   'models.test': {
     description: 'Test a specific model with a simple request',
     getData: (args) => ({
-      cwd: args.cwd,
       model: args.model || 'anthropic/claude-sonnet-4-20250514',
+      ...(args.prompt && { prompt: args.prompt }),
+      ...(args.timeout && { timeout: args.timeout }),
     }),
   },
 
