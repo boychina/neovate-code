@@ -466,6 +466,56 @@ class NodeHandlerRegistry {
       };
     });
 
+    this.messageBus.registerHandler('models.test', async (data) => {
+      const { model: modelStr } = data;
+      const cwd = data.cwd || require('os').tmpdir();
+      const prompt = 'hi';
+      try {
+        const context = await this.getContext(cwd);
+        const { model, error } = await resolveModelWithContext(
+          modelStr,
+          context,
+        );
+
+        if (error || !model) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Model not found',
+          };
+        }
+
+        // Test the model by sending a simple request with no system prompt
+        const result = await query({
+          userPrompt: prompt,
+          model,
+          systemPrompt: '',
+        });
+
+        if (!result.success) {
+          return {
+            success: false,
+            error: result.error?.message || 'Model test failed',
+          };
+        }
+
+        return {
+          success: true,
+          data: {
+            model: modelStr,
+            provider: model.provider.name,
+            modelName: model.model.name,
+            prompt,
+            response: result.data?.text || '',
+          },
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message || 'Failed to test model',
+        };
+      }
+    });
+
     //////////////////////////////////////////////
     // outputStyles
     this.messageBus.registerHandler('outputStyles.list', async (data) => {
