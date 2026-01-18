@@ -1,4 +1,4 @@
-import { Box, render, Text } from 'ink';
+import { Box, render, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
 import path from 'pathe';
 import type React from 'react';
@@ -7,14 +7,24 @@ import type { Context } from '../context';
 import { Paths } from '../paths';
 import {
   type AddSkillResult,
+  type PreviewSkillsResult,
   SkillManager,
   type SkillMetadata,
+  type SkillPreview,
   SkillSource,
 } from '../skill';
 
 type AddState =
   | { phase: 'cloning' }
   | { phase: 'done'; result: AddSkillResult }
+  | { phase: 'error'; error: string };
+
+type InteractiveAddState =
+  | { phase: 'cloning' }
+  | { phase: 'selecting'; preview: PreviewSkillsResult }
+  | { phase: 'installing' }
+  | { phase: 'done'; result: AddSkillResult }
+  | { phase: 'cancelled' }
   | { phase: 'error'; error: string };
 
 type ListState =
@@ -238,6 +248,242 @@ interface RemoveSkillUIProps {
   skillManager: SkillManager;
 }
 
+interface InteractiveAddSkillUIProps {
+  source: string;
+  skillManager: SkillManager;
+  options: {
+    global?: boolean;
+    claude?: boolean;
+    overwrite?: boolean;
+    name?: string;
+    target?: string;
+  };
+}
+
+const InteractiveAddSkillUI: React.FC<InteractiveAddSkillUIProps> = ({
+  source,
+  skillManager,
+  options,
+}) => {
+  const [state, setState] = useState<InteractiveAddState>({ phase: 'cloning' });
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(
+    new Set(),
+  );
+  const [cursorIndex, setCursorIndex] = useState(0);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const preview = await skillManager.previewSkills(source);
+        if (preview.skills.length === 0) {
+          setState({
+            phase: 'error',
+            error:
+              preview.errors.length > 0
+                ? preview.errors[0].message
+                : 'No skills found',
+          });
+          skillManager.cleanupPreview(preview);
+          setTimeout(() => process.exit(1), 2000);
+          return;
+        }
+        // Pre-select all skills
+        setSelectedIndices(new Set(preview.skills.map((_, i) => i)));
+        setState({ phase: 'selecting', preview });
+      } catch (error: any) {
+        setState({ phase: 'error', error: error.message });
+        setTimeout(() => process.exit(1), 2000);
+      }
+    };
+    run();
+  }, [source, skillManager]);
+
+  useInput(
+    (input, key) => {
+      if (state.phase !== 'selecting') return;
+
+      const { preview } = state;
+      const skills = preview.skills;
+
+      if (key.upArrow) {
+        setCursorIndex((prev) => (prev > 0 ? prev - 1 : skills.length - 1));
+      } else if (key.downArrow) {
+        setCursorIndex((prev) => (prev < skills.length - 1 ? prev + 1 : 0));
+      } else if (input === ' ') {
+        setSelectedIndices((prev) => {
+          const next = new Set(prev);
+          if (next.has(cursorIndex)) {
+            next.delete(cursorIndex);
+          } else {
+            next.add(cursorIndex);
+          }
+          return next;
+        });
+      } else if (key.return) {
+        if (selectedIndices.size === 0) {
+          skillManager.cleanupPreview(preview);
+          setState({ phase: 'cancelled' });
+          setTimeout(() => process.exit(0), 1000);
+          return;
+        }
+
+        const selectedSkills = skills.filter((_, i) => selectedIndices.has(i));
+        setState({ phase: 'installing' });
+
+        skillManager
+          .installFromPreview(preview, selectedSkills, source, {
+            global: options.global,
+            claude: options.claude,
+            overwrite: options.overwrite,
+            name: options.name,
+            targetDir: options.target,
+          })
+          .then((result) => {
+            skillManager.cleanupPreview(preview);
+            setState({ phase: 'done', result });
+            setTimeout(() => process.exit(0), 1500);
+          })
+          .catch((error: any) => {
+            skillManager.cleanupPreview(preview);
+            setState({ phase: 'error', error: error.message });
+            setTimeout(() => process.exit(1), 2000);
+          });
+      } else if (key.escape || input === 'q') {
+        skillManager.cleanupPreview(preview);
+        setState({ phase: 'cancelled' });
+        setTimeout(() => process.exit(0), 1000);
+      }
+    },
+    { isActive: state.phase === 'selecting' },
+  );
+
+  if (state.phase === 'cloning') {
+    return (
+      <Box>
+        <Text color="cyan">
+          <Spinner type="dots" />
+        </Text>
+        <Text> Fetching skills from {source}...</Text>
+      </Box>
+    );
+  }
+
+  if (state.phase === 'error') {
+    return <Text color="red">✗ Error: {state.error}</Text>;
+  }
+
+  if (state.phase === 'cancelled') {
+    return <Text dimColor>No skills selected.</Text>;
+  }
+
+  if (state.phase === 'installing') {
+    return (
+      <Box>
+        <Text color="cyan">
+          <Spinner type="dots" />
+        </Text>
+        <Text> Installing {selectedIndices.size} skill(s)...</Text>
+      </Box>
+    );
+  }
+
+  if (state.phase === 'selecting') {
+    const { preview } = state;
+    return (
+      <Box flexDirection="column">
+        <Text bold>Select skills to install:</Text>
+        <Text dimColor>
+          (↑/↓ navigate, space toggle, enter confirm, q/esc cancel)
+        </Text>
+        <Box flexDirection="column" marginTop={1}>
+          {preview.skills.map((skill, i) => {
+            const isSelected = selectedIndices.has(i);
+            const isCursor = cursorIndex === i;
+            return (
+              <Box key={skill.skillPath}>
+                <Text color={isCursor ? 'cyan' : undefined}>
+                  {isCursor ? '❯ ' : '  '}
+                </Text>
+                <Text color={isSelected ? 'green' : 'gray'}>
+                  {isSelected ? '◉' : '○'}
+                </Text>
+                <Text> {skill.name}</Text>
+                <Text dimColor> - {skill.description}</Text>
+              </Box>
+            );
+          })}
+        </Box>
+        <Box marginTop={1}>
+          <Text dimColor>
+            {selectedIndices.size} of {preview.skills.length} selected
+          </Text>
+        </Box>
+      </Box>
+    );
+  }
+
+  // phase === 'done'
+  const { result } = state;
+  const installDir =
+    result.installed.length > 0
+      ? path.dirname(path.dirname(result.installed[0].path))
+      : null;
+  return (
+    <Box flexDirection="column">
+      {result.installed.length > 0 && (
+        <Box flexDirection="column">
+          <Text color="green" bold>
+            ✓ Installed {result.installed.length} skill(s) to {installDir}:
+          </Text>
+          {result.installed.map((skill) => (
+            <Box key={skill.name} marginLeft={2}>
+              <Text color="green">• {skill.name}</Text>
+            </Box>
+          ))}
+        </Box>
+      )}
+      {result.skipped.length > 0 && (
+        <Box
+          flexDirection="column"
+          marginTop={result.installed.length > 0 ? 1 : 0}
+        >
+          <Text color="yellow" bold>
+            ⚠ Skipped {result.skipped.length} skill(s):
+          </Text>
+          {result.skipped.map((item) => (
+            <Box key={item.name} marginLeft={2}>
+              <Text color="yellow">• {item.name}</Text>
+              <Text dimColor> - {item.reason}</Text>
+            </Box>
+          ))}
+          <Box marginLeft={2} marginTop={1}>
+            <Text dimColor>Use --overwrite to replace existing skills</Text>
+          </Box>
+        </Box>
+      )}
+      {result.errors.length > 0 && (
+        <Box
+          flexDirection="column"
+          marginTop={
+            result.installed.length > 0 || result.skipped.length > 0 ? 1 : 0
+          }
+        >
+          <Text color="red" bold>
+            ✗ Errors:
+          </Text>
+          {result.errors.map((error, i) => (
+            <Box key={i} marginLeft={2}>
+              <Text color="red">
+                • {error.path}: {error.message}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+};
+
 const RemoveSkillUI: React.FC<RemoveSkillUIProps> = ({
   name,
   targetDir,
@@ -308,6 +554,7 @@ Add Options:
   --claude         Install to Claude skills directory (.claude/skills/)
   --overwrite      Overwrite existing skill with the same name
   --name <name>    Install with a custom local name
+  -i, --interactive  Interactively select which skills to install
 
 List Options:
   --target <dir>   Target directory for skills
@@ -323,6 +570,7 @@ Examples:
   ${p} skill add --claude user/repo           Add skill to .claude/skills/
   ${p} skill add --claude -g user/repo        Add skill to ~/.claude/skills/
   ${p} skill add --name my-skill user/repo    Add with custom name
+  ${p} skill add -i user/repo                 Add skill interactively
   ${p} skill list                             List all skills
   ${p} skill list --json                      List as JSON
   ${p} skill remove my-skill                  Remove skill from project
@@ -351,6 +599,7 @@ interface SkillArgv {
   claude?: boolean;
   overwrite?: boolean;
   json?: boolean;
+  interactive?: boolean;
   target?: string;
   name?: string;
 }
@@ -364,8 +613,9 @@ export async function runSkill(context: Context) {
       global: 'g',
       target: 't',
       name: 'n',
+      interactive: 'i',
     },
-    boolean: ['help', 'global', 'overwrite', 'json', 'claude'],
+    boolean: ['help', 'global', 'overwrite', 'json', 'claude', 'interactive'],
     string: ['target', 'name'],
   }) as SkillArgv;
 
@@ -389,6 +639,24 @@ export async function runSkill(context: Context) {
       console.error('Error: Missing source argument');
       console.error(`Usage: ${productName} skill add <source>`);
       process.exit(1);
+    }
+
+    if (argv.interactive) {
+      render(
+        <InteractiveAddSkillUI
+          source={source}
+          skillManager={skillManager}
+          options={{
+            global: argv.global,
+            claude: argv.claude,
+            overwrite: argv.overwrite,
+            name: argv.name,
+            target: argv.target,
+          }}
+        />,
+        { patchConsole: true, exitOnCtrlC: true },
+      );
+      return;
     }
 
     render(
