@@ -34,6 +34,7 @@ export interface SkillLoadOutcome {
 
 export interface AddSkillOptions {
   global?: boolean;
+  claude?: boolean;
   overwrite?: boolean;
   name?: string;
   targetDir?: string;
@@ -269,6 +270,7 @@ export class SkillManager {
   ): Promise<AddSkillResult> {
     const {
       global: isGlobal = false,
+      claude: isClaude = false,
       overwrite = false,
       name,
       targetDir,
@@ -304,9 +306,21 @@ export class SkillManager {
 
       const targetBaseDir = targetDir
         ? targetDir
-        : isGlobal
-          ? path.join(this.paths.globalConfigDir, 'skills')
-          : path.join(this.paths.projectConfigDir, 'skills');
+        : isClaude && isGlobal
+          ? path.join(
+              path.dirname(this.paths.globalConfigDir),
+              '.claude',
+              'skills',
+            )
+          : isClaude
+            ? path.join(
+                path.dirname(this.paths.projectConfigDir),
+                '.claude',
+                'skills',
+              )
+            : isGlobal
+              ? path.join(this.paths.globalConfigDir, 'skills')
+              : path.join(this.paths.projectConfigDir, 'skills');
 
       fs.mkdirSync(targetBaseDir, { recursive: true });
 
@@ -348,7 +362,14 @@ export class SkillManager {
           name: parsed.name,
           description: parsed.description,
           path: path.join(targetDir, 'SKILL.md'),
-          source: isGlobal ? SkillSource.Global : SkillSource.Project,
+          source:
+            isClaude && isGlobal
+              ? SkillSource.GlobalClaude
+              : isClaude
+                ? SkillSource.ProjectClaude
+                : isGlobal
+                  ? SkillSource.Global
+                  : SkillSource.Project,
         });
       }
 

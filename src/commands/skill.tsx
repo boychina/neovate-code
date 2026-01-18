@@ -32,6 +32,7 @@ interface AddSkillUIProps {
   skillManager: SkillManager;
   options: {
     global?: boolean;
+    claude?: boolean;
     overwrite?: boolean;
     name?: string;
     target?: string;
@@ -50,6 +51,7 @@ const AddSkillUI: React.FC<AddSkillUIProps> = ({
       try {
         const result = await skillManager.addSkill(source, {
           global: options.global,
+          claude: options.claude,
           overwrite: options.overwrite,
           name: options.name,
           targetDir: options.target,
@@ -303,6 +305,7 @@ Options:
 Add Options:
   --target <dir>   Target directory for skills
   --global, -g     Install to global skills directory (~/.neovate/skills/)
+  --claude         Install to Claude skills directory (.claude/skills/)
   --overwrite      Overwrite existing skill with the same name
   --name <name>    Install with a custom local name
 
@@ -317,6 +320,8 @@ Examples:
   ${p} skill add user/repo                    Add skill from GitHub
   ${p} skill add user/repo/path               Add skill from subpath
   ${p} skill add -g user/repo                 Add skill globally
+  ${p} skill add --claude user/repo           Add skill to .claude/skills/
+  ${p} skill add --claude -g user/repo        Add skill to ~/.claude/skills/
   ${p} skill add --name my-skill user/repo    Add with custom name
   ${p} skill list                             List all skills
   ${p} skill list --json                      List as JSON
@@ -327,10 +332,14 @@ Examples:
 }
 
 function resolveTargetDir(
-  argv: { target?: string; global?: boolean },
+  argv: { target?: string; global?: boolean; claude?: boolean },
   paths: Paths,
 ): string {
   if (argv.target) return path.resolve(argv.target);
+  if (argv.claude && argv.global)
+    return path.join(path.dirname(paths.globalConfigDir), '.claude', 'skills');
+  if (argv.claude)
+    return path.join(path.dirname(paths.projectConfigDir), '.claude', 'skills');
   if (argv.global) return path.join(paths.globalConfigDir, 'skills');
   return path.join(paths.projectConfigDir, 'skills');
 }
@@ -339,6 +348,7 @@ interface SkillArgv {
   _: string[];
   help?: boolean;
   global?: boolean;
+  claude?: boolean;
   overwrite?: boolean;
   json?: boolean;
   target?: string;
@@ -355,7 +365,7 @@ export async function runSkill(context: Context) {
       target: 't',
       name: 'n',
     },
-    boolean: ['help', 'global', 'overwrite', 'json'],
+    boolean: ['help', 'global', 'overwrite', 'json', 'claude'],
     string: ['target', 'name'],
   }) as SkillArgv;
 
@@ -387,6 +397,7 @@ export async function runSkill(context: Context) {
         skillManager={skillManager}
         options={{
           global: argv.global,
+          claude: argv.claude,
           overwrite: argv.overwrite,
           name: argv.name,
           target: argv.target,
