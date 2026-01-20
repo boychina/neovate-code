@@ -425,9 +425,16 @@ and may require re-resolving conflicts.`,
       );
 
       if (!generateResult.success) {
+        const rawError = generateResult.error as unknown;
+        const errorMsg =
+          typeof rawError === 'object' &&
+          rawError !== null &&
+          'message' in rawError
+            ? String((rawError as { message: unknown }).message)
+            : generateResult.error || 'Failed to generate commit message';
         setState({
           phase: 'error',
-          error: generateResult.error || 'Failed to generate commit message',
+          error: errorMsg,
           recoveryAction: () => runWorkflow(),
         });
         return;
@@ -477,9 +484,16 @@ and may require re-resolving conflicts.`,
     });
 
     if (!generateResult.success) {
+      const rawError = generateResult.error as unknown;
+      const errorMsg =
+        typeof rawError === 'object' &&
+        rawError !== null &&
+        'message' in rawError
+          ? String((rawError as { message: unknown }).message)
+          : generateResult.error || 'Failed to generate commit message';
       setState({
         phase: 'error',
-        error: generateResult.error || 'Failed to generate commit message',
+        error: errorMsg,
         recoveryAction: () => runWorkflow(),
       });
       return;
