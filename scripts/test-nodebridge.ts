@@ -20,6 +20,7 @@ interface ParsedArgs {
   list: boolean;
   handler: string | null;
   data: Record<string, unknown>;
+  jsonData: Record<string, unknown> | null;
 }
 
 /**
@@ -45,6 +46,7 @@ function parseArgs(): ParsedArgs {
     list: false,
     handler: null,
     data: {},
+    jsonData: null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -54,6 +56,23 @@ function parseArgs(): ParsedArgs {
       result.help = true;
     } else if (arg === '-l' || arg === '--list') {
       result.list = true;
+    } else if (arg.startsWith('--data=') || arg === '--data') {
+      // Handle --data with JSON
+      let jsonStr: string;
+      if (arg.startsWith('--data=')) {
+        jsonStr = arg.slice(7);
+      } else if (i + 1 < args.length) {
+        jsonStr = args[++i];
+      } else {
+        console.error('Error: --data requires a JSON value');
+        process.exit(1);
+      }
+      try {
+        result.jsonData = JSON.parse(jsonStr);
+      } catch {
+        console.error(`Error: Invalid JSON for --data: ${jsonStr}`);
+        process.exit(1);
+      }
     } else if (arg.startsWith('--')) {
       // Handle --key=value or --key value format
       const withoutDashes = arg.slice(2);
@@ -78,6 +97,11 @@ function parseArgs(): ParsedArgs {
     }
   }
 
+  // Merge: --data (jsonData) takes priority over --key=value (data)
+  if (result.jsonData) {
+    result.data = { ...result.data, ...result.jsonData };
+  }
+
   return result;
 }
 
@@ -93,6 +117,7 @@ Arguments:
 Options:
   -h, --help        Show this help message
   -l, --list        List all available handlers
+  --data <json>     Pass handler data as JSON (takes priority over --key=value)
 
 Handler Arguments:
   All --key=value or --key value pairs are passed to the handler as data.
@@ -103,6 +128,7 @@ Examples:
   bun scripts/test-nodebridge.ts models.list
   bun scripts/test-nodebridge.ts models.test --model=anthropic/claude-sonnet-4-20250514
   bun scripts/test-nodebridge.ts models.test --model=openai/gpt-4o --prompt="Say hello" --timeout=5000
+  bun scripts/test-nodebridge.ts models.test --data='{"model":"anthropic/claude-sonnet-4-20250514","timeout":5000}'
   bun scripts/test-nodebridge.ts utils.getPaths --cwd=/path/to/dir --maxFiles=100
   bun scripts/test-nodebridge.ts projects.list --includeSessionDetails=true
 `);
