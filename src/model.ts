@@ -1820,7 +1820,6 @@ export const providers: ProvidersMap = {
     name: 'Cerebras',
     doc: 'https://cerebras.ai/docs',
     models: {
-      'zai-glm-4.6': models['glm-4.6'],
       'zai-glm-4.7': models['glm-4.7'],
       'gpt-oss-120b': models['gpt-oss-120b'],
     },
